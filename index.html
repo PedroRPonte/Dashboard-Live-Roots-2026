@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Roots | Master System & CFO Dashboard</title>
+    
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Motor de Audio (Crucial para el Terminal Agua) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    
+    <!-- Fuentes -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Configuración del Tema -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'base-black': '#0A0A0A',
+                        'dark-gray': '#141414',
+                        'bio-cyan': '#00F0FF',
+                        'bio-green': '#39FF14',
+                        'water-bg': '#081014',
+                        'water-accent': '#4cc9f0',
+                        'alert-red': '#FF003C'
+                    },
+                    fontFamily: {
+                        'sans': ['Space Grotesk', 'sans-serif'],
+                        'mono': ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* CSS Base y Scrollbar */
+        body { background-color: #0A0A0A; color: #e5e5e5; scroll-behavior: smooth; overflow-x: hidden; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0A0A0A; }
+        ::-webkit-scrollbar-thumb { background: #141414; border: 1px solid #333; }
+        ::-webkit-scrollbar-thumb:hover { background: #00F0FF; }
+
+        /* Efectos Glow compartidos */
+        .glow-cyan { text-shadow: 0 0 10px rgba(0, 240, 255, 0.5); }
+        .border-glow { border: 1px solid #39FF14; box-shadow: 0 0 10px rgba(57, 255, 20, 0.2); }
+        .border-glow-cyan { border: 1px solid #00F0FF; box-shadow: 0 0 15px rgba(0, 240, 255, 0.15); }
+        
+        /* Glassmorphism para el Dashboard */
+        .glass-card {
+            background: rgba(20, 20, 20, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .timeline-dot {
+            width: 12px; height: 12px;
+            background-color: #0A0A0A;
+            border: 2px solid #39FF14;
+            border-radius: 50%;
+            position: absolute; left: -6px; top: 6px;
+            box-shadow: 0 0 10px rgba(57, 255, 20, 0.5);
+        }
+
+        /* Animaciones del Terminal Agua */
+        #agua-terminal { transition: opacity 0.5s ease, visibility 0.5s; }
+        .orb {
+            width: 100%; height: 100%; border-radius: 50%;
+            background: rgba(76, 201, 240, 0.02);
+            transform: scale(1); filter: blur(30px);
+            transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1), background 0.6s ease-out;
+        }
+        .orb.pulse {
+            transform: scale(1.2);
+            background: rgba(76, 201, 240, 0.25);
+            transition: transform 0.1s ease-out, background 0.1s ease-out;
+        }
+        .orb.disconnected { background: transparent; transform: scale(0.1); }
+    </style>
+</head>
+<body class="antialiased selection:bg-bio-cyan selection:text-base-black">
+
+    <!-- BARRA DE NAVEGACIÓN GLOBAL -->
+    <nav class="fixed w-full flex flex-col md:flex-row justify-between items-center p-4 md:p-6 bg-base-black/90 backdrop-blur-md z-40 border-b border-dark-gray">
+        <div class="text-xl font-bold tracking-widest text-white mb-4 md:mb-0">LIVE ROOTS<span class="text-bio-green">.</span></div>
+        <div class="hidden lg:flex space-x-6 font-mono text-sm items-center">
+            <a href="#tech" class="hover:text-bio-cyan transition">HARDWARE</a>
+            <a href="#ecosistemas" class="hover:text-bio-cyan transition">MATRICES</a>
+            <span class="text-gray-800">|</span>
+            <a href="#dashboard" class="text-bio-green hover:text-white transition glow-green font-bold">DASHBOARD CFO</a>
+        </div>
+        <div class="flex space-x-3">
+            <!-- Botón Web Oficial -->
+            <a href="https://www.liverootslab.com" target="_blank" class="px-4 py-2 bg-base-black border border-bio-green text-bio-green hover:bg-bio-green hover:text-base-black font-mono text-[10px] md:text-sm transition shadow-[0_0_10px_rgba(57,255,20,0.2)] flex items-center justify-center text-center">
+                [ WEB OFICIAL ]
+            </a>
+            <!-- Botón Visor Terminal -->
+            <button onclick="openTerminal()" class="px-4 py-2 bg-base-black border border-bio-cyan text-bio-cyan hover:bg-bio-cyan hover:text-base-black font-mono text-[10px] md:text-sm transition shadow-[0_0_10px_rgba(0,240,255,0.2)]">
+                [ ACCEDER AL TERMINAL AGUA ]
+            </button>
+        </div>
+    </nav>
+
+    <!-- SECCIÓN: HERO ESCUCHAR LO INVISIBLE -->
+    <section class="min-h-screen flex flex-col justify-center items-center text-center px-4 relative overflow-hidden pt-24">
+        <div class="absolute inset-0 z-0 opacity-20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-bio-cyan/20 to-base-black pointer-events-none"></div>
+        
+        <div class="z-10 max-w-3xl">
+            <div class="inline-block px-3 py-1 mb-6 border border-dark-gray rounded-full font-mono text-xs text-bio-green bg-dark-gray/50 shadow-[0_0_10px_rgba(57,255,20,0.1)]">
+                SISTEMA EN LÍNEA • LATENCIA 0ms
+            </div>
+            <h1 class="text-5xl md:text-7xl font-bold text-white mb-6 tracking-tight glow-cyan uppercase">
+                Escuchar lo Invisible
+            </h1>
+            <p class="text-lg md:text-xl text-gray-400 mb-10 font-sans max-w-2xl mx-auto">
+                Interfases de datos bioeléctricos en vivo. Transductores de alta precisión que transforman la energía de plantas, hongos y humanos en música mediante tecnología MIDI.
+            </p>
+            <div class="flex flex-col md:flex-row justify-center items-center space-y-4 md:space-y-0 md:space-x-4">
+                <a href="#tech" class="px-8 py-4 bg-white text-base-black font-bold tracking-widest hover:bg-gray-200 transition text-sm">
+                    ARQUITECTURA ↓
+                </a>
+                <a href="#dashboard" class="px-8 py-4 border border-gray-700 text-white font-bold tracking-widest hover:border-bio-green hover:text-bio-green transition text-sm">
+                    REPORTE FINANCIERO ↓
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECCIÓN: HARDWARE & TECH -->
+    <section id="tech" class="py-24 px-6 md:px-12 bg-dark-gray border-t border-gray-800">
+        <div class="max-w-6xl mx-auto">
+            <h2 class="text-3xl font-bold text-white mb-12 border-l-4 border-bio-cyan pl-4 uppercase">Under The Hood // Especificaciones</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <!-- Tarjetas Tech -->
+                <div class="p-6 bg-base-black border border-gray-800 hover:border-bio-cyan transition group">
+                    <div class="text-bio-cyan font-mono text-sm mb-4 group-hover:glow-cyan">SYS.01</div>
+                    <h3 class="text-xl font-bold text-white mb-3">Red de Comunicación Vegetal</h3>
+                    <p class="text-gray-400 text-sm">Nuestros sensores captan comunicación inter-especies en tiempo real. Algoritmos filtran el ruido estático para aislar la señal pura de la red biológica.</p>
+                </div>
+                <div class="p-6 bg-base-black border border-gray-800 hover:border-bio-cyan transition group">
+                    <div class="text-bio-cyan font-mono text-sm mb-4 group-hover:glow-cyan">SYS.02</div>
+                    <h3 class="text-xl font-bold text-white mb-3">Biofeedback Humano</h3>
+                    <p class="text-gray-400 text-sm">Interfaz de autoconocimiento. Al usar las pinzas, la señal MIDI refleja fluctuaciones emocionales al instante. Cambios de estado mental transforman la topografía sonora.</p>
+                </div>
+                <div class="p-6 bg-base-black border border-gray-800 hover:border-bio-cyan transition group">
+                    <div class="text-bio-cyan font-mono text-sm mb-4 group-hover:glow-cyan">SYS.03</div>
+                    <h3 class="text-xl font-bold text-white mb-3">Eficiencia USB-C</h3>
+                    <p class="text-gray-400 text-sm">Alimentación pasiva directa. Sin degradación de baterías de litio. Operación continua garantizada, maximizando durabilidad y minimizando la huella de carbono.</p>
+                </div>
+                <div class="p-6 bg-base-black border border-gray-800 hover:border-bio-cyan transition group">
+                    <div class="text-bio-cyan font-mono text-sm mb-4 group-hover:glow-cyan">SYS.04</div>
+                    <h3 class="text-xl font-bold text-white mb-3">Conexión MIDI 432Hz</h3>
+                    <p class="text-gray-400 text-sm">Cuantización algorítmica para asegurar paisajes sonoros armónicos y biofeedback terapéutico, alineado con frecuencias de sanación celular.</p>
+                </div>
+                <div class="p-6 bg-base-black border border-gray-800 hover:border-bio-cyan transition group">
+                    <div class="text-bio-cyan font-mono text-sm mb-4 group-hover:glow-cyan">SYS.05</div>
+                    <h3 class="text-xl font-bold text-white mb-3">Filtro Anti-Saturación</h3>
+                    <p class="text-gray-400 text-sm">Filtros de latencia programados (150ms) a nivel de código para procesar ráfagas bioeléctricas masivas sin colapsar la CPU del navegador.</p>
+                </div>
+                <div class="p-6 bg-base-black border border-gray-800 hover:border-bio-cyan transition group">
+                    <div class="text-bio-cyan font-mono text-sm mb-4 group-hover:glow-cyan">SYS.06</div>
+                    <h3 class="text-xl font-bold text-white mb-3">Integración TouchDesigner</h3>
+                    <p class="text-gray-400 text-sm">Arquitectura de señal abierta. Extrae la data cruda y rutea los parámetros a software visual para crear experiencias inmersivas 3D reactivas.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECCIÓN: ECOSISTEMAS -->
+    <section id="ecosistemas" class="py-24 px-6 md:px-12 bg-base-black border-t border-gray-800">
+        <div class="max-w-6xl mx-auto">
+            <h2 class="text-3xl font-bold text-white mb-12 border-l-4 border-bio-green pl-4 uppercase">Matrices de Operación</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="p-8 border-glow bg-dark-gray/30 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 bg-bio-green text-base-black text-xs font-bold px-3 py-1 font-mono">B2C</div>
+                    <h4 class="text-xl font-bold text-bio-green mb-2">01 // El Explorador Consciente</h4>
+                    <p class="text-gray-400">Para amantes de la naturaleza y mentes curiosas. Setup minimalista plug & play para contemplar el entorno y conectar con tus propias plantas en casa o en expediciones forestales.</p>
+                </div>
+                <div class="p-8 border border-gray-800 hover:border-gray-600 transition relative">
+                    <div class="absolute top-0 right-0 bg-gray-800 text-white text-xs font-bold px-3 py-1 font-mono">B2B / Clínico</div>
+                    <h4 class="text-xl font-bold text-white mb-2">02 // El Facilitador de Bienestar</h4>
+                    <p class="text-gray-400">Hardware robusto para terapeutas e instructores. Herramienta clínica de biofeedback para regulación emocional en sesiones personales o grupales (documentado en usuarios TEA).</p>
+                </div>
+                <div class="p-8 border border-gray-800 hover:border-gray-600 transition relative">
+                    <div class="absolute top-0 right-0 bg-gray-800 text-white text-xs font-bold px-3 py-1 font-mono">Pro / Arte</div>
+                    <h4 class="text-xl font-bold text-white mb-2">03 // El Creador y Bio-Artista</h4>
+                    <p class="text-gray-400">Extracción de señal MIDI pura. Integración sin latencia para diseño sonoro, instalaciones audiovisuales de gran escala, paisajismo sonoro o biodanza inmersiva.</p>
+                </div>
+                <div class="p-8 border border-gray-800 hover:border-gray-600 transition relative">
+                    <div class="absolute top-0 right-0 bg-gray-800 text-white text-xs font-bold px-3 py-1 font-mono">B2B / Retail</div>
+                    <h4 class="text-xl font-bold text-white mb-2">04 // Aliados Corporativos</h4>
+                    <p class="text-gray-400">Integraciones de hardware continuo para hoteles, spas, viveros y diseño de espacios biofílicos que buscan ofrecer experiencias como nuestra Cabina Biorrítmica.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- INICIO DASHBOARD FINANCIERO -->
+    <div id="dashboard" class="pt-24 pb-12 px-6 md:px-12 bg-dark-gray border-t border-bio-green relative">
+        <div class="max-w-7xl mx-auto">
+            <h1 class="text-4xl md:text-5xl font-bold text-white mb-2 uppercase tracking-tight">Consolidado Financiero</h1>
+            <p class="text-gray-400 font-mono text-sm mb-12">REPORTE CFO ACADEMY / CORFO EXPANDE SEMILLA</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-16">
+                <div class="glass-card p-6 border-l-4 border-bio-cyan">
+                    <div class="text-xs font-mono text-gray-500 mb-1">PRESUPUESTO TOTAL (10M)</div>
+                    <div class="text-3xl font-bold text-white">$33.3M <span class="text-sm font-mono text-gray-500">CLP</span></div>
+                </div>
+                <div class="glass-card p-6 border-l-4 border-bio-green">
+                    <div class="text-xs font-mono text-gray-500 mb-1">SUBSIDIO CORFO (75%)</div>
+                    <div class="text-3xl font-bold text-bio-green">$25.0M <span class="text-sm font-mono text-gray-500">CLP</span></div>
+                </div>
+                <div class="glass-card p-6 border-l-4 border-gray-600">
+                    <div class="text-xs font-mono text-gray-500 mb-1">APORTE LIVE ROOTS (25%)</div>
+                    <div class="text-3xl font-bold text-white">$8.3M <span class="text-sm font-mono text-gray-500">CLP</span></div>
+                </div>
+                <div class="glass-card p-6 border-glow-cyan bg-bio-cyan/5">
+                    <div class="text-xs font-mono text-bio-cyan mb-1">MARGEN LIBRE CORTO PLAZO</div>
+                    <div class="text-3xl font-bold text-white">$2.6M <span class="text-sm font-mono text-gray-500">CLP</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FINANZAS: FLUJO DE CAJA -->
+    <section class="py-16 px-6 md:px-12 bg-base-black border-t border-gray-800">
+        <div class="max-w-7xl mx-auto">
+            <h2 class="text-2xl font-bold text-white mb-8 border-l-2 border-bio-cyan pl-3 uppercase">01 // Flujo de Caja & Destino Estricto</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-base-black border border-gray-800 p-6 hover:border-bio-cyan transition group">
+                    <div class="flex justify-between items-start mb-4">
+                        <h3 class="text-sm font-mono text-gray-400 group-hover:text-bio-cyan transition">Venta Lote A</h3>
+                        <span class="text-xs px-2 py-1 bg-gray-800 text-white rounded font-mono">15 UDS</span>
+                    </div>
+                    <div class="text-2xl font-bold text-white mb-4">+$2.675.670</div>
+                    <div class="text-sm text-gray-400 border-t border-gray-800 pt-4">
+                        <strong class="text-white text-xs block mb-1">ACCIÓN ESTRICTA:</strong> Inyección directa a caja. Liquidación máx en 14 días.
+                    </div>
+                </div>
+                <div class="bg-base-black border border-gray-800 p-6 hover:border-alert-red transition group">
+                    <div class="flex justify-between items-start mb-4">
+                        <h3 class="text-sm font-mono text-gray-400 group-hover:text-alert-red transition">Producción Empaques</h3>
+                        <span class="text-xs px-2 py-1 bg-gray-800 text-white rounded font-mono">22 UDS</span>
+                    </div>
+                    <div class="text-2xl font-bold text-gray-500 mb-4">[Por Cotizar]</div>
+                    <div class="text-sm text-gray-400 border-t border-gray-800 pt-4">
+                        <strong class="text-white text-xs block mb-1">ACCIÓN ESTRICTA:</strong> OC inmediata. Pago a 30 días si es posible.
+                    </div>
+                </div>
+                <div class="bg-base-black border border-bio-green p-6 shadow-[0_0_15px_rgba(57,255,20,0.05)] relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-16 h-16 bg-bio-green/10 rounded-bl-full"></div>
+                    <div class="flex justify-between items-start mb-4 relative z-10">
+                        <h3 class="text-sm font-mono text-bio-green">Fondo Corfo</h3>
+                        <span class="text-xs px-2 py-1 bg-bio-green/20 text-bio-green rounded font-mono">TRAMO 1</span>
+                    </div>
+                    <div class="text-2xl font-bold text-white mb-4 relative z-10">+$8.300.000</div>
+                    <div class="text-sm text-gray-400 border-t border-gray-800 pt-4 relative z-10">
+                        <strong class="text-white text-xs block mb-1">ACCIÓN ESTRICTA:</strong> Exclusivo escalamiento. <span class="text-alert-red">Intocable para parches logísticos.</span>
+                    </div>
+                </div>
+                <div class="bg-base-black border border-gray-800 p-6 hover:border-bio-cyan transition group">
+                    <div class="flex justify-between items-start mb-4">
+                        <h3 class="text-sm font-mono text-gray-400 group-hover:text-bio-cyan transition">Margen Libre</h3>
+                    </div>
+                    <div class="text-2xl font-bold text-bio-cyan mb-4">~$2.600.000</div>
+                    <div class="text-sm text-gray-400 border-t border-gray-800 pt-4">
+                        <strong class="text-white text-xs block mb-1">ACCIÓN ESTRICTA:</strong> Financiar orden superpuesta a China (Dos Lotes).
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FINANZAS: PRESUPUESTO -->
+    <section class="py-16 px-6 md:px-12 bg-dark-gray border-t border-gray-800">
+        <div class="max-w-7xl mx-auto">
+            <h2 class="text-2xl font-bold text-white mb-8 border-l-2 border-bio-green pl-3 uppercase">02 // Presupuesto Optimizado (10 Meses)</h2>
+            <div class="overflow-x-auto rounded-lg border border-gray-800">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-base-black text-gray-400 font-mono text-xs uppercase tracking-wider border-b border-gray-800">
+                            <th class="p-4 font-normal">Ítem de Gasto</th>
+                            <th class="p-4 font-normal">Monto Mensual</th>
+                            <th class="p-4 font-normal text-white">Total 10 Meses</th>
+                            <th class="p-4 font-normal text-bio-green">Corfo (75%)</th>
+                            <th class="p-4 font-normal text-bio-cyan">Aporte LR (25%)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-sm text-gray-300 divide-y divide-gray-800 bg-dark-gray">
+                        <tr class="hover:bg-base-black transition">
+                            <td class="p-4 font-bold text-white">Sueldo Fundadores (Bruto)</td>
+                            <td class="p-4 font-mono">$1.400.000</td>
+                            <td class="p-4 font-mono text-white">$14.000.000</td>
+                            <td class="p-4 font-mono text-bio-green">$14.000.000</td>
+                            <td class="p-4 font-mono text-gray-600">$0</td>
+                        </tr>
+                        <tr class="hover:bg-base-black transition">
+                            <td class="p-4 font-bold text-white">Fabricación y Desarrollo</td>
+                            <td class="p-4 font-mono">$976.333</td>
+                            <td class="p-4 font-mono text-white">$9.763.333</td>
+                            <td class="p-4 font-mono text-bio-green">$6.000.000</td>
+                            <td class="p-4 font-mono text-bio-cyan">$3.763.333</td>
+                        </tr>
+                        <tr class="hover:bg-base-black transition">
+                            <td class="p-4 font-bold text-white">Marketing y Alianzas</td>
+                            <td class="p-4 font-mono">$700.000</td>
+                            <td class="p-4 font-mono text-white">$7.000.000</td>
+                            <td class="p-4 font-mono text-bio-green">$5.000.000</td>
+                            <td class="p-4 font-mono text-bio-cyan">$2.000.000</td>
+                        </tr>
+                        <tr class="hover:bg-base-black transition">
+                            <td class="p-4 font-bold text-white">Contabilidad (1.5 UF)</td>
+                            <td class="p-4 font-mono">$57.000</td>
+                            <td class="p-4 font-mono text-white">$570.000</td>
+                            <td class="p-4 font-mono text-gray-600">$0</td>
+                            <td class="p-4 font-mono text-bio-cyan">$570.000</td>
+                        </tr>
+                        <tr class="hover:bg-base-black transition">
+                            <td class="p-4 font-bold text-white">Fondo de Imprevistos</td>
+                            <td class="p-4 font-mono">$200.000</td>
+                            <td class="p-4 font-mono text-white">$2.000.000</td>
+                            <td class="p-4 font-mono text-gray-600">$0</td>
+                            <td class="p-4 font-mono text-bio-cyan">$2.000.000</td>
+                        </tr>
+                        <tr class="bg-gray-900 border-t-2 border-gray-700">
+                            <td class="p-4 font-bold text-white">TOTALES</td>
+                            <td class="p-4 font-mono font-bold text-white">$3.333.333</td>
+                            <td class="p-4 font-mono font-bold text-white">$33.333.333</td>
+                            <td class="p-4 font-mono font-bold text-bio-green">$25.000.000</td>
+                            <td class="p-4 font-mono font-bold text-bio-cyan">$8.333.333</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- FINANZAS: GANTT MEJORADA -->
+    <section class="py-16 px-6 md:px-12 bg-base-black border-t border-gray-800">
+        <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12">
+            
+            <!-- COLUMNA 1: TÁCTICA INMEDIATA -->
+            <div>
+                <h2 class="text-2xl font-bold text-white mb-8 border-l-2 border-white pl-3 uppercase">03A // Táctica Inmediata (4 Semanas)</h2>
+                <div class="relative pl-6 border-l border-gray-700 space-y-8">
+                    <!-- Semana 1 -->
+                    <div class="relative">
+                        <div class="timeline-dot"></div>
+                        <h4 class="text-sm font-mono text-bio-cyan mb-1">SEMANA 1</h4>
+                        <div class="bg-dark-gray border border-gray-800 p-4 rounded-r shadow-md">
+                            <p class="text-white text-sm font-bold mb-2">Lanzamiento campaña "Lote Limitado" (15 uds). Emisión OC empaques (22 uds).</p>
+                            <div class="text-xs text-gray-400 flex justify-between border-t border-gray-800 pt-2 mt-2">
+                                <span><span class="text-gray-500">Resp:</span> Com/Operaciones</span>
+                                <span class="text-bio-green font-mono">META: 7 uds vendidas. OC OK.</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Semana 2 -->
+                    <div class="relative">
+                        <div class="timeline-dot"></div>
+                        <h4 class="text-sm font-mono text-bio-cyan mb-1">SEMANA 2</h4>
+                        <div class="bg-dark-gray border border-gray-800 p-4 rounded-r shadow-md">
+                            <p class="text-white text-sm font-bold mb-2">Seguimiento Lote A. Prospección pre-venta Lote B a B2B (Kenaz/Mykósfera).</p>
+                            <div class="text-xs text-gray-400 flex justify-between border-t border-gray-800 pt-2 mt-2">
+                                <span><span class="text-gray-500">Resp:</span> Comercial</span>
+                                <span class="text-bio-green font-mono">META: 15 uds. Flujo $2.6M.</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Semana 3 -->
+                    <div class="relative">
+                        <div class="timeline-dot"></div>
+                        <h4 class="text-sm font-mono text-bio-cyan mb-1">SEMANA 3</h4>
+                        <div class="bg-dark-gray border border-gray-800 p-4 rounded-r shadow-md">
+                            <p class="text-white text-sm font-bold mb-2">Lanzamiento admin Semilla Expande. Recepción de empaques externalizados.</p>
+                            <div class="text-xs text-gray-400 flex justify-between border-t border-gray-800 pt-2 mt-2">
+                                <span><span class="text-gray-500">Resp:</span> Admin/Operaciones</span>
+                                <span class="text-bio-green font-mono">META: Empaques sin desvíos.</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Semana 4 -->
+                    <div class="relative">
+                        <div class="timeline-dot"></div>
+                        <h4 class="text-sm font-mono text-bio-cyan mb-1">SEMANA 4</h4>
+                        <div class="bg-dark-gray border border-gray-800 p-4 rounded-r shadow-md border-l-2 border-l-bio-cyan">
+                            <p class="text-white text-sm font-bold mb-2">Ensamblaje local exprés (22 uds). Despacho inmediato de pre-ventas.</p>
+                            <div class="text-xs text-gray-400 flex justify-between border-t border-gray-800 pt-2 mt-2">
+                                <span><span class="text-gray-500">Resp:</span> Operaciones</span>
+                                <span class="text-bio-green font-mono text-right">META: 22 uds listas.<br>Cuello botella eliminado.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUMNA 2: ESTRATEGIA MACRO -->
+            <div>
+                <h2 class="text-2xl font-bold text-white mb-8 border-l-2 border-gray-500 pl-3 uppercase">03B // Estrategia Comercial Macro (10M)</h2>
+                <div class="space-y-6">
+                    <!-- Fase 1 -->
+                    <div class="glass-card p-5 border border-gray-800">
+                        <div class="flex items-center justify-between mb-3 border-b border-gray-800 pb-2">
+                            <h3 class="text-lg font-bold text-white">FASE 1: Estructuración</h3>
+                            <span class="bg-gray-800 text-gray-300 font-mono text-xs px-2 py-1">MES 1 - 2</span>
+                        </div>
+                        <ul class="text-sm text-gray-400 space-y-2 list-disc pl-4">
+                            <li><strong class="text-gray-300">Construir la máquina:</strong> Nuevos pitch decks (ej. Syngenta).</li>
+                            <li>Embudo B2C hacia Colombia. Emisión de OC para asegurar stock.</li>
+                            <li>Cierre de alianzas (facilitadores, retail) y recepción lote masivo con QA estricto.</li>
+                        </ul>
+                    </div>
+                    <!-- Fase 2 -->
+                    <div class="glass-card p-5 border border-bio-green/40 relative overflow-hidden">
+                        <div class="absolute right-0 top-0 text-6xl text-bio-green opacity-5 font-mono">!</div>
+                        <div class="flex items-center justify-between mb-3 border-b border-gray-800 pb-2 relative z-10">
+                            <h3 class="text-lg font-bold text-bio-green">FASE 2: Despliegue Crítico</h3>
+                            <span class="bg-bio-green/20 text-bio-green font-mono text-xs px-2 py-1">MES 3 - 4</span>
+                        </div>
+                        <ul class="text-sm text-gray-400 space-y-2 list-disc pl-4 relative z-10">
+                            <li><strong class="text-gray-300">Ejecución B2B:</strong> Activaciones corporativas prevendidas.</li>
+                            <li><strong class="text-white">Hito CFO Mes 3:</strong> Facturar mínimo $3.600.000 (Si < día 20, promo táctica).</li>
+                            <li><strong class="text-bio-cyan">El Umbral Corfo (Mes 4):</strong> Superar $4.000.000 facturados y rendidos. Auditoría neta vs base de $8.243.822.</li>
+                        </ul>
+                    </div>
+                    <!-- Fase 3 -->
+                    <div class="glass-card p-5 border border-gray-800">
+                        <div class="flex items-center justify-between mb-3 border-b border-gray-800 pb-2">
+                            <h3 class="text-lg font-bold text-white">FASE 3: Expansión Sostenida</h3>
+                            <span class="bg-gray-800 text-gray-300 font-mono text-xs px-2 py-1">MES 5 - 10</span>
+                        </div>
+                        <ul class="text-sm text-gray-400 space-y-2 list-disc pl-4">
+                            <li><strong class="text-gray-300">Consolidación (M5-6):</strong> Sostener > 4MM/mes. Comisiones a red facilitadores.</li>
+                            <li><strong class="text-gray-300">Logística Int. (M7-8):</strong> Evaluar margen real Colombia (aranceles/envío).</li>
+                            <li><strong class="text-gray-300">Postulación (M9-10):</strong> Cierre Corfo. Facturación como argumento para Fase 2 ($20MM).</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </section>
+
+    <!-- FOOTER: DISTRIBUCIÓN Y CONTACTO -->
+    <footer id="distribucion" class="border-t border-dark-gray bg-dark-gray py-16 px-6 relative z-10">
+        <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
+            <div>
+                <h5 class="text-white font-mono text-sm mb-4 border-b border-gray-800 pb-2">RESPALDO INSTITUCIONAL</h5>
+                <ul class="text-gray-400 space-y-3 text-sm">
+                    <li class="flex items-center"><span class="text-bio-green mr-2">✓</span> Incubados en FabLab U. de Chile</li>
+                    <li class="flex items-center"><span class="text-bio-green mr-2">✓</span> Ecosistema CRTIC</li>
+                    <li class="flex items-center"><span class="text-bio-green mr-2">✓</span> Corfo Expande Semilla 2026</li>
+                </ul>
+            </div>
+            <div>
+                <h5 class="text-white font-mono text-sm mb-4 border-b border-gray-800 pb-2">NODOS DE DISTRIBUCIÓN</h5>
+                <ul class="text-gray-400 space-y-3 text-sm">
+                    <li class="pb-2">
+                        📍 <strong>Tienda Kenaz</strong> <br>
+                        <span class="text-gray-500 pl-4 block">Av. Latadía, Las Condes.</span>
+                        <span class="text-bio-cyan font-mono text-xs pl-4 block">Abierto horario hábil.</span>
+                    </li>
+                    <li class="pb-2">
+                        📍 <strong>Mykósfera</strong> <br>
+                        <span class="text-gray-500 pl-4 block">Persa Victor Manuel.</span>
+                        <span class="text-bio-cyan font-mono text-xs pl-4 block">Solo sábados y domingos.</span>
+                    </li>
+                </ul>
+            </div>
+            <div>
+                <h5 class="text-white font-mono text-sm mb-4 border-b border-gray-800 pb-2">OPERACIONES & LOGÍSTICA</h5>
+                <p class="text-gray-400 text-sm mb-6">Empaque 100% libre de plásticos y programa de logística inversa. Cero residuos electrónicos.</p>
+                <a href="mailto:hola@liveroots.cl" class="w-full py-4 bg-bio-green text-base-black font-bold tracking-wider hover:bg-white transition flex justify-center items-center text-sm">
+                    ESCRIBE A: HOLA@LIVEROOTS.CL
+                </a>
+            </div>
+        </div>
+        
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center font-mono text-xs text-gray-500 border-t border-gray-800 pt-8">
+            <div>LIVE ROOTS SYSTEM ARCHITECTURE © 2026</div>
+            <div class="flex space-x-4 mt-4 md:mt-0">
+                <span>STATUS: <span class="text-bio-green">ONLINE</span></span>
+                <span>LATENCY: 0ms</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ========================================== -->
+    <!-- OVERLAY: TERMINAL AGUA (LÓGICA BIOSONIDO)  -->
+    <!-- ========================================== -->
+    <div id="agua-terminal" class="fixed inset-0 bg-water-bg z-50 flex flex-col justify-center items-center opacity-0 invisible backdrop-blur-xl">
+        
+        <button onclick="closeTerminal()" class="absolute top-8 right-8 text-white/50 hover:text-water-accent font-mono text-sm tracking-widest transition border border-transparent hover:border-water-accent px-4 py-2">
+            [ CERRAR CONEXIÓN Y DETENER AUDIO ]
+        </button>
+
+        <h1 class="text-4xl md:text-6xl font-sans text-[#d1e8e8] font-bold tracking-[0.3em] uppercase mb-2 z-10 text-center">LIVE ROOTS</h1>
+        <h2 class="text-xl md:text-2xl text-water-accent font-sans font-light tracking-[0.15em] uppercase mb-12 z-10 opacity-70 border-b border-water-accent/30 pb-4">TERMINAL: ELEMENTO AGUA</h2>
+
+        <div id="status" class="text-sm opacity-60 mb-8 font-mono text-center z-10 min-h-[1.5em] text-[#d1e8e8] max-w-md px-4">
+            Sistema en Standby. Requiere autorización para iniciar el motor de audio y buscar puertos de hardware MIDI.
+        </div>
+        
+        <button id="start-btn" class="bg-transparent border border-water-accent text-[#d1e8e8] px-10 py-5 text-sm tracking-widest cursor-pointer transition-all duration-500 rounded-full z-10 hover:bg-water-accent hover:text-water-bg hover:shadow-[0_0_30px_rgba(76,201,240,0.4)] font-bold">
+            INICIAR AGUA
+        </button>
+
+        <div id="visual-anchor" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] z-[1] pointer-events-none">
+            <div class="orb disconnected" id="orb"></div>
+        </div>
+    </div>
+
+    <!-- SCRIPTS CORE: DOM y Motor de Audio WebMIDI -->
+    <script>
+        // -- Lógica del Overlay (Terminal Agua)
+        const terminal = document.getElementById('agua-terminal');
+        const defaultBodyOverflow = document.body.style.overflow;
+
+        function openTerminal() {
+            terminal.classList.remove('invisible', 'opacity-0');
+            terminal.classList.add('opacity-100');
+            document.body.style.overflow = 'hidden'; 
+        }
+
+        function closeTerminal() {
+            terminal.classList.remove('opacity-100');
+            terminal.classList.add('opacity-0');
+            document.body.style.overflow = defaultBodyOverflow; 
+            
+            setTimeout(() => { terminal.classList.add('invisible'); }, 500);
+            
+            if (Tone.context.state === 'running') {
+                Tone.Destination.volume.rampTo(-100, 1);
+            }
+        }
+
+        // -- Motor Audio y Lógica WebMIDI
+        let midiAccess = null;
+        let lastNoteTime = 0;
+        const MIN_NOTE_INTERVAL = 150; 
+        const AMBIENT_MAX_VOLUME = -50; 
+        const SCALE = [0, 2, 4, 7, 9]; 
+
+        const startBtn = document.getElementById('start-btn');
+        const statusDiv = document.getElementById('status');
+        const orb = document.getElementById('orb');
+        let synth, ambientNoise, ambientFilter, reverb, delay;
+
+        startBtn.addEventListener('click', async () => {
+            try {
+                startBtn.innerText = "INICIANDO SISTEMAS...";
+                await Tone.start();
+                setupAudioEngine();
+                setupMIDI();
+                startBtn.classList.add('hidden');
+                statusDiv.innerText = "Motor de audio activo. Escaneando puertos MIDI locales...";
+            } catch (e) {
+                console.error(e);
+                statusDiv.innerText = "Error Crítico: " + e.message;
+            }
+        });
+
+        function setupAudioEngine() {
+            synth = new Tone.PolySynth(Tone.Synth, {
+                maxPolyphony: 6, 
+                oscillator: { type: "sine" },
+                envelope: { attack: 0.01, decay: 0.4, sustain: 0, release: 1.2 }
+            });
+            synth.volume.value = -6; 
+
+            ambientNoise = new Tone.Noise("brown"); 
+            ambientFilter = new Tone.Filter(200, "highpass"); 
+            ambientNoise.connect(ambientFilter);
+            ambientFilter.toDestination();
+            ambientNoise.volume.value = -100; 
+            ambientNoise.start();
+
+            reverb = new Tone.Reverb({ decay: 7, wet: 0.5 }).toDestination();
+            delay = new Tone.PingPongDelay({ delayTime: "8n", feedback: 0.4, wet: 0.3 }).connect(reverb);
+            synth.connect(delay);
+            Tone.Destination.volume.value = -100; 
+        }
+
+        function setupMIDI() {
+            if (navigator.requestMIDIAccess) {
+                navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+            } else { statusDiv.innerText = "Excepción: Su navegador no soporta el protocolo WebMIDI."; }
+        }
+
+        function onMIDISuccess(midi) {
+            midiAccess = midi;
+            updateConnectionState(midiAccess);
+            midiAccess.onstatechange = () => updateConnectionState(midiAccess);
+            for (let input of midiAccess.inputs.values()) { 
+                input.onmidimessage = handleMIDIMessage; 
+            }
+        }
+
+        function updateConnectionState(midi) {
+            const inputs = Array.from(midi.inputs.values());
+            const isConnected = inputs.length > 0 && inputs.some(i => i.state !== 'disconnected');
+
+            if (isConnected) {
+                statusDiv.innerHTML = "Hardware Live Roots detectado.<br><span style='color:#39FF14;'>Telemetría fluyendo.</span>";
+                statusDiv.style.color = "#4cc9f0";
+                orb.classList.remove('disconnected');
+                Tone.Destination.volume.rampTo(-5, 2); 
+                if(ambientNoise) ambientNoise.volume.rampTo(AMBIENT_MAX_VOLUME, 3);
+            } else {
+                statusDiv.innerHTML = "Esperando hardware...<br>Conecte su Live Roots Mini vía USB-C.";
+                statusDiv.style.color = "#d1e8e8";
+                orb.classList.add('disconnected');
+                Tone.Destination.volume.rampTo(-100, 2);
+                if(ambientNoise) ambientNoise.volume.rampTo(-100, 2);
+            }
+        }
+
+        function onMIDIFailure() { statusDiv.innerText = "Error: El sistema operativo bloqueó el acceso MIDI."; }
+
+        function handleMIDIMessage(message) {
+            const [command, noteRaw, velocity] = message.data;
+            if (command === 144 && velocity > 0) triggerPlantEvent(noteRaw, velocity);
+        }
+
+        function triggerPlantEvent(rawNote, velocity) {
+            const now = Date.now();
+            if (now - lastNoteTime < MIN_NOTE_INTERVAL) return; 
+            lastNoteTime = now;
+
+            const octave = Math.floor(rawNote / 12);
+            const noteInOctave = rawNote % 12;
+            let closest = SCALE[0], minDiff = Math.abs(noteInOctave - closest);
+            for (let i = 1; i < SCALE.length; i++) {
+                let diff = Math.abs(noteInOctave - SCALE[i]);
+                if (diff < minDiff) { minDiff = diff; closest = SCALE[i]; }
+            }
+            const quantizedNote = (octave * 12) + closest + 12; 
+            const frequency = 432 * Math.pow(2, (quantizedNote - 69) / 12);
+            const humanVel = (velocity / 127) * (0.6 + Math.random() * 0.4); 
+            
+            synth.triggerAttackRelease(frequency, "32n", Tone.now(), humanVel);
+            
+            // Animación Visual reactiva al velocity
+            orb.classList.add('pulse');
+            document.documentElement.style.setProperty('--circle-active', `rgba(76, 201, 240, ${0.15 + ((velocity/127) * 0.4)})`);
+            setTimeout(() => orb.classList.remove('pulse'), 150); 
+        }
+    </script>
+</body>
+</html>
